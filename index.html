@@ -213,6 +213,48 @@ legend{font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weigh
 .steps li b{display:block}
 .steps li span{color:var(--ink-2);font-size:13.5px}
 
+/* community */
+.composer{display:grid;gap:8px}
+.composer textarea{min-height:90px}
+.posts{display:grid;gap:14px}
+.post{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:16px;display:grid;gap:10px}
+.post.pinned{border-color:#5a2226}
+.post .ph2{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--ink-2)}
+.post .ph2 b{color:var(--ink);font-size:14px}
+.post .body{white-space:pre-line;margin:0;max-width:70ch;overflow-wrap:anywhere}
+.tag{font-size:10.5px;font-weight:700;letter-spacing:.06em;padding:1px 6px;border-radius:2px;background:var(--surface-3);color:var(--ink-2)}
+.tag.red{background:var(--red);color:#fff}
+.tag.fan{background:var(--sticker);color:var(--sticker-ink)}
+.tag.team{background:var(--ink);color:var(--bg)}
+.cmts{border-top:1px dashed var(--line);padding-top:10px;display:grid;gap:10px}
+.cmt{display:grid;gap:2px;font-size:14px}
+.cmt .h{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12.5px;color:var(--ink-3)}
+.cmt .h b{color:var(--ink);font-size:13.5px;font-weight:500}
+.cmt p{margin:0;white-space:pre-line;overflow-wrap:anywhere}
+.cform{display:flex;gap:8px}
+.cform input{flex:1}
+/* DM */
+.threads{display:grid}
+.thr{display:grid;grid-template-columns:44px 1fr auto;gap:12px;align-items:center;padding:12px 4px;border-bottom:1px solid var(--line);text-decoration:none;color:inherit}
+.thr:hover{background:var(--surface)}
+.av{width:44px;height:44px;border-radius:4px;background:var(--surface-3);display:grid;place-items:center;font-family:var(--display);font-size:20px;color:var(--ink-2);overflow:hidden}
+.av img{width:100%;height:100%;object-fit:cover}
+.thr .nm{font-weight:700}
+.thr .last{font-size:13.5px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:52ch}
+.thr .tm{font-size:12px;color:var(--ink-3);text-align:right;display:grid;gap:4px;justify-items:end}
+.chat{display:grid;gap:10px;padding:16px;background:var(--surface);border:1px solid var(--line);border-radius:6px;min-height:320px;max-height:60vh;overflow-y:auto;align-content:start}
+.msg{max-width:min(78%,520px);display:grid;gap:3px}
+.msg .bub{padding:9px 12px;border-radius:10px;background:var(--surface-3);white-space:pre-line;overflow-wrap:anywhere;font-size:14.5px}
+.msg.mine{justify-self:end}
+.msg.mine .bub{background:var(--red);color:#fff}
+.msg .meta2{font-size:11.5px;color:var(--ink-3)}
+.msg.mine .meta2{text-align:right}
+.dmday{justify-self:center;font-size:12px;color:var(--ink-3);font-family:var(--mono)}
+.dmform{display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:10px}
+.dmform textarea{min-height:52px;height:52px}
+.pickmenu{display:grid;gap:4px;background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:8px}
+.pickmenu a{text-decoration:none;padding:6px 10px;border-radius:4px;font-size:14px}
+.pickmenu a:hover{background:var(--surface-3)}
 footer{margin-top:64px;padding-top:16px;border-top:1px solid var(--line);font-size:12.5px;color:var(--ink-3);display:flex;gap:12px;flex-wrap:wrap;justify-content:space-between}
 footer a{color:var(--ink-3)}
 .loading{padding:48px 0;color:var(--ink-3);text-align:center}
@@ -324,11 +366,11 @@ function likeEsc(s){ return s.replace(/[\\%_]/g, m => "\\" + m); }
 
 /* =================== 상태 =================== */
 let sb = null;
-const S = { user:null, profile:null, roles:new Map(), myPages:[], follows:new Set(), incoming:0, next:null, recovering:false, booted:false };
+const S = { user:null, profile:null, roles:new Map(), myPages:[], follows:new Set(), incoming:0, unread:0, next:null, recovering:false, booted:false };
 let viewId = 0;
 
 async function refreshMe(){
-  if (!S.user){ S.profile = null; S.roles = new Map(); S.myPages = []; S.follows = new Set(); S.incoming = 0; return; }
+  if (!S.user){ S.profile = null; S.roles = new Map(); S.myPages = []; S.follows = new Set(); S.incoming = 0; S.unread = 0; return; }
   const uid = S.user.id;
   const [p, m, f, r] = await Promise.all([
     sb.from("profiles").select("*").eq("id", uid).maybeSingle(),
@@ -341,10 +383,17 @@ async function refreshMe(){
   S.roles = new Map(S.myPages.map(x => [x.id, x.role]));
   S.follows = new Set((f.data || []).map(x => x.page_id));
   S.incoming = r.count || 0;
+  S.unread = 0;
+  if (S.myPages.length){ const u = await sb.rpc("my_unread_dm"); if (!u.error && typeof u.data === "number") S.unread = u.data; }
 }
 function renderAcct(){
   const a = $("acct"); a.textContent = "";
   if (!S.user){ a.append(el("a", { href:"#/login", class:"btn small", text:"로그인 · 가입" })); return; }
+  if (S.myPages.length){
+    const dm = el("a", { href:"#/dm", class:"btn small ghost", text:"DM" });
+    if (S.unread) dm.append(el("span", { class:"badge-dot", text:String(S.unread > 99 ? "99+" : S.unread), "aria-label":`안 읽은 DM ${S.unread}개` }));
+    a.append(dm);
+  }
   const nick = S.profile?.nickname || "내 계정";
   const link = el("a", { href:"#/me", class:"btn small ghost" }, nick);
   if (S.incoming) link.append(el("span", { class:"badge-dot", text:String(S.incoming), "aria-label":`받은 요청 ${S.incoming}개` }));
@@ -365,19 +414,21 @@ const ROUTES = [
   [/^#\/new\/(artist|host)$/, k => viewNew(k)],
   [/^#\/me$/, () => viewMe()],
   [/^#\/login$/, () => viewLogin()],
-  [/^#\/withdraw$/, () => viewWithdraw()]
+  [/^#\/withdraw$/, () => viewWithdraw()],
+  [/^#\/dm$/, () => viewDmInbox()],
+  [/^#\/dm\/([0-9a-f-]{36})\/([0-9a-f-]{36})$/, (a, b) => viewDmThread(a, b)]
 ];
 function go(h){ if (location.hash === h) route(); else location.hash = h; }
 function route(){
   const h = location.hash || "#/";
   if (/access_token|error_description|type=recovery/.test(h)) return;
   viewId++;
-  let navKey = null, fn = null, arg = null;
-  for (const [re, f, nk] of ROUTES){ const m = h.match(re); if (m){ fn = f; arg = m[1]; navKey = nk || null; break; } }
+  let navKey = null, fn = null, args = [];
+  for (const [re, f, nk] of ROUTES){ const m = h.match(re); if (m){ fn = f; args = m.slice(1); navKey = nk || null; break; } }
   document.querySelectorAll("#nav a").forEach(a => { if (a.dataset.nav === navKey) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
   window.scrollTo(0, 0);
   if (!fn){ mount(el("div", { class:"empty", style:"margin-top:40px" }, el("div", { text:"페이지를 찾을 수 없어요." }), el("a", { class:"btn", href:"#/", text:"홈으로" }))); return; }
-  fn(arg);
+  fn(...args);
 }
 function mount(...nodes){ $("app").replaceChildren(...nodes); }
 function loading(){ mount(el("div", { class:"loading", text:"불러오는 중…" })); return viewId; }
@@ -574,7 +625,14 @@ async function viewPage(pid){
     teamActs.append(el("a", { class:"btn", href:`#/p/${pid}/edit`, text:"프로필 수정" }), el("a", { class:"btn", href:`#/p/${pid}/team`, text:"팀 관리" }), el("a", { class:"btn", href:`#/p/${pid}/event/new`, text:"+ 공연 등록" }));
   } else if (role === "member"){
     teamActs.append(el("a", { class:"btn", href:`#/p/${pid}/team`, text:"팀 보기" }), el("a", { class:"btn", href:`#/p/${pid}/event/new`, text:"+ 공연 등록" }));
-  } else if (S.user){
+  }
+  const senders = S.myPages.filter(x => x.id !== pid);
+  if (senders.length && !role){
+    const menu = el("div", { class:"pickmenu", hidden:true }, el("div", { class:"eyebrow", style:"padding:4px 10px", text:"어느 팀 이름으로 보낼까요?" }), senders.map(x => el("a", { href:`#/dm/${x.id}/${pid}`, text:`${x.name} (${KIND[x.kind].label})` })));
+    const dmBtn = el("button", { type:"button", class:"btn", text:"DM 보내기", onclick:() => { if (senders.length === 1) go(`#/dm/${senders[0].id}/${pid}`); else menu.hidden = !menu.hidden; } });
+    teamActs.append(dmBtn, menu);
+  }
+  if (!role && S.user){
     const pend = (myReq.data || []);
     const inv = pend.find(r => r.kind === "invite");
     const join = pend.find(r => r.kind === "join");
@@ -621,7 +679,7 @@ async function viewPage(pid){
     body.append(el("div", { class:"sect" }, el("h3", { text:p.kind === "artist" ? "섭외 연락처" : "연락처" }), el("div", { class:"contact" }, code, copy)));
   }
   body.append(el("div", { class:"sect" }, el("h3", { text:"팀" }), el("div", { class:"members" }, members.map(m => el("span", { class:"member" }, m.profiles?.nickname || "회원", el("span", { class:"role " + (m.role === "master" ? "" : "member"), text:m.role === "master" ? "MASTER" : "MEMBER" }))))));
-  if (p.kind === "artist") body.append(el("div", { class:"sect" }, el("h3", { text:"팬 커뮤니티" }), el("div", { class:"soon", text:"아티스트 공지와 팬 댓글 공간이 곧 열려요." })));
+  body.append(community(p, role, members, id));
 
   const left = el("div", {}, photoBox(p, { big:true }));
   mount(el("div", { class:"prof" }, left, el("div", {}, head, body)));
@@ -969,7 +1027,7 @@ async function viewMe(){
   blocks.push(el("div", { class:"panel" }, el("h2", { text:"내 아티스트 · 호스트" }),
     mp.length ? el("div", { class:"rows" }, mp.map(p => el("div", { class:"rowi" },
       el("div", { class:"who" }, el("a", { href:`#/p/${p.id}`, text:p.name }), el("span", { class:"muted", text:KIND[p.kind].label }), el("span", { class:"role " + (p.role === "master" ? "" : "member"), text:p.role === "master" ? "MASTER" : "MEMBER" })),
-      el("div", { class:"actions" }, p.role === "master" ? el("a", { class:"btn small", href:`#/p/${p.id}/edit`, text:"수정" }) : null, el("a", { class:"btn small ghost", href:`#/p/${p.id}/team`, text:"팀" }))))) :
+      el("div", { class:"actions" }, p.role === "master" ? el("a", { class:"btn small", href:`#/p/${p.id}/edit`, text:"수정" }) : null, el("a", { class:"btn small ghost", href:`#/p/${p.id}/team`, text:"팀" }), el("a", { class:"btn small ghost", href:"#/dm", text:"DM" }))))) :
       el("p", { class:"muted", style:"margin:0", text:"음악을 하거나 공연을 만든다면, 프로필을 만들어 활동을 시작해 보세요. 준비 가이드가 단계별로 도와드려요." }),
     el("div", { class:"actions" }, el("a", { class:"btn primary", href:"#/new/artist", text:"+ 아티스트 프로필 만들기" }), el("a", { class:"btn", href:"#/new/host", text:"+ 호스트 프로필 만들기" })),
     (out.data || []).length ? el("div", {}, el("div", { class:"eyebrow", style:"margin:8px 0 4px", text:"보낸 참여 요청" }), el("div", { class:"rows" }, out.data.map(r => el("div", { class:"rowi" }, el("div", { class:"who" }, el("a", { href:`#/p/${r.pages?.id}`, text:r.pages?.name || "팀" }), el("span", { class:"muted", text:"마스터 수락 대기 중" })), el("button", { type:"button", class:"btn ghost small", text:"취소", onclick:act(async () => { await rpc("cancel_request", { p_req:r.id }); toast("요청을 취소했어요"); }) }))))) : null));
@@ -1071,6 +1129,186 @@ function viewLogin(){
   mount(el("div", { class:"auth" }, el("div", { style:"margin-bottom:16px" }, title, sub), form));
 }
 
+/* =================== 시간 표시 =================== */
+function ago(ts){
+  const d = new Date(ts), s = (Date.now() - d.getTime()) / 1000;
+  if (s < 60) return "방금";
+  if (s < 3600) return Math.floor(s / 60) + "분 전";
+  if (s < 86400) return Math.floor(s / 3600) + "시간 전";
+  if (s < 86400 * 7) return Math.floor(s / 86400) + "일 전";
+  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
+}
+function hm(ts){ const d = new Date(ts); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; }
+
+/* =================== 공지 · 댓글 (팬 커뮤니티) =================== */
+function community(p, role, members, vid){
+  const sect = el("div", { class:"sect", id:"community" });
+  const memberIds = new Set(members.map(m => m.user_id));
+  const isMaster = role === "master";
+  const title = el("h3", { text:p.kind === "artist" ? "공지 · 팬 커뮤니티" : "공지 · 커뮤니티" });
+  const list = el("div", { class:"posts" }, el("div", { class:"muted", text:"불러오는 중…" }));
+  sect.append(title);
+
+  if (role){
+    const ta = el("textarea", { id:"post-body", maxlength:"3000", placeholder:p.kind === "artist" ? "팬들에게 전할 소식을 적어 주세요. 새 곡, 공연, 근황 무엇이든 좋아요." : "공연 소식, 아티스트 모집 안내 등을 적어 주세요." });
+    const st = el("p", { class:"status" });
+    const btn = el("button", { type:"submit", class:"btn primary", text:"공지 올리기" });
+    sect.append(el("form", { class:"composer", style:"margin-bottom:16px", onsubmit:async e => {
+      e.preventDefault(); const b = ta.value.trim(); if (!b) return setStatus(st, "내용을 입력해 주세요", "err");
+      btn.disabled = true;
+      const { error } = await sb.from("posts").insert({ page_id:p.id, author_id:S.user.id, body:b });
+      btn.disabled = false;
+      if (error) return setStatus(st, errMsg(error), "err");
+      ta.value = ""; setStatus(st, ""); toast("공지를 올렸어요"); load();
+    } }, el("label", { for:"post-body", class:"lbl", text:`${p.name} 이름으로 공지 쓰기` }), ta, el("div", { class:"actions" }, btn), st));
+  }
+  sect.append(list);
+
+  async function load(){
+    const { data:posts, error } = await sb.from("posts").select("*, profiles(nickname)").eq("page_id", p.id).order("pinned", { ascending:false }).order("created_at", { ascending:false }).limit(30);
+    if (stale(vid)) return;
+    if (error){ list.replaceChildren(el("p", { class:"muted", text:"공지를 불러오지 못했어요." })); return; }
+    if (!posts.length){ list.replaceChildren(el("p", { class:"muted", style:"margin:0", text:role ? "아직 공지가 없어요. 첫 소식을 올려 팬들과 이야기를 시작해 보세요." : "아직 올라온 공지가 없어요. 팬을 맺어 두면 새 소식을 놓치지 않아요." })); return; }
+    const ids = posts.map(x => x.id);
+    const { data:cmts } = await sb.from("comments").select("*, profiles(nickname)").in("post_id", ids).order("created_at");
+    const authors = [...new Set((cmts || []).map(c => c.author_id))];
+    const { data:fans } = authors.length ? await sb.from("follows").select("user_id").eq("page_id", p.id).in("user_id", authors) : { data:[] };
+    if (stale(vid)) return;
+    const fanSet = new Set((fans || []).map(f => f.user_id));
+    const byPost = {}; (cmts || []).forEach(c => (byPost[c.post_id] ||= []).push(c));
+    list.replaceChildren(...posts.map(po => postNode(po, byPost[po.id] || [], fanSet)));
+  }
+
+  function badge(uid){
+    if (memberIds.has(uid)) return el("span", { class:"tag team", text:"TEAM" });
+    if (fanSet0(uid)) return el("span", { class:"tag fan", text:"FAN" });
+    return null;
+  }
+  let fanSetRef = new Set();
+  const fanSet0 = uid => fanSetRef.has(uid);
+
+  function postNode(po, cs, fanSet){
+    fanSetRef = fanSet;
+    const head = el("div", { class:"ph2" }, el("b", { text:p.name }), el("span", { class:"tag red", text:"공지" }), po.pinned ? el("span", { class:"tag", text:"고정됨" }) : null,
+      el("span", { text:`${po.profiles?.nickname || "팀원"} · ${ago(po.created_at)}` }));
+    const acts = el("div", { class:"actions" });
+    if (role){
+      acts.append(el("button", { type:"button", class:"btn small ghost", text:po.pinned ? "고정 해제" : "맨 위에 고정", onclick:async () => { const { error } = await sb.from("posts").update({ pinned:!po.pinned }).eq("id", po.id); if (error) return toast(errMsg(error), "err"); load(); } }),
+        confirmBtn("삭제", "danger small", async () => { const { error } = await sb.from("posts").delete().eq("id", po.id); if (error) return toast(errMsg(error), "err"); toast("공지를 삭제했어요"); load(); }, "한 번 더 누르면 삭제"));
+    }
+    const cbox = el("div", { class:"cmts" });
+    cs.forEach(c => {
+      const mine = S.user && c.author_id === S.user.id;
+      const h = el("div", { class:"h" }, el("b", { text:c.profiles?.nickname || "회원" }), badge(c.author_id), el("span", { text:ago(c.created_at) }));
+      if (mine || isMaster) h.append(el("button", { type:"button", class:"linkbtn", style:"font-size:12px", text:"삭제", onclick:async () => { const { error } = await sb.from("comments").delete().eq("id", c.id); if (error) return toast(errMsg(error), "err"); load(); } }));
+      cbox.append(el("div", { class:"cmt" }, h, el("p", { text:c.body })));
+    });
+    if (S.user){
+      const ci = el("input", { type:"text", id:"c-" + po.id, maxlength:"1000", placeholder:"댓글 달기", "aria-label":"댓글" });
+      const cb = el("button", { type:"submit", class:"btn small", text:"등록" });
+      cbox.append(el("form", { class:"cform", onsubmit:async e => {
+        e.preventDefault(); const b = ci.value.trim(); if (!b) return;
+        cb.disabled = true;
+        const { error } = await sb.from("comments").insert({ post_id:po.id, author_id:S.user.id, body:b });
+        cb.disabled = false;
+        if (error) return toast(errMsg(error), "err");
+        ci.value = ""; load();
+      } }, ci, cb));
+    } else cbox.append(el("a", { href:"#/login", class:"linkbtn", style:"font-size:13px", text:"로그인하고 댓글 달기", onclick:() => { S.next = location.hash; } }));
+    return el("article", { class:"post" + (po.pinned ? " pinned" : "") }, head, el("p", { class:"body", text:po.body }), acts.childNodes.length ? acts : null, cbox);
+  }
+  load();
+  return sect;
+}
+
+/* =================== DM =================== */
+function avatar(name, photo){ const a = el("div", { class:"av" }); const u = safePhoto(photo); if (u) a.append(el("img", { src:u, alt:"" })); else a.textContent = (name || "?").slice(0, 1); return a; }
+
+async function viewDmInbox(){
+  if (needLogin()) return;
+  const id = loading();
+  await refreshMe(); renderAcct();
+  if (stale(id)) return;
+  if (!S.myPages.length){ mount(el("div", { class:"narrow", style:"margin-top:32px;display:grid;gap:16px" }, el("h1", { text:"DM" }),
+    emptyBox("DM은 아티스트·호스트 프로필끼리 주고받을 수 있어요. 먼저 프로필을 만들거나 팀에 참여해 주세요.", el("div", { class:"actions" }, el("a", { class:"btn primary", href:"#/new/artist", text:"아티스트 프로필 만들기" }), el("a", { class:"btn", href:"#/new/host", text:"호스트 프로필 만들기" }))))); return; }
+  const results = await Promise.all(S.myPages.map(p => sb.rpc("dm_threads", { p_page:p.id })));
+  if (stale(id)) return;
+  const blocks = S.myPages.map((p, i) => {
+    const th = results[i].data || [];
+    return el("div", { class:"panel" },
+      el("div", { class:"sechead", style:"margin:0" }, el("h2", { text:p.name }), el("span", { class:"muted", style:"font-size:13px", text:`${KIND[p.kind].label} · 팀원 모두가 함께 보는 DM함` })),
+      th.length ? el("div", { class:"threads" }, th.map(t => el("a", { class:"thr", href:`#/dm/${p.id}/${t.peer_id}` },
+        avatar(t.peer_name, t.peer_photo),
+        el("div", { style:"min-width:0" }, el("div", { class:"nm", text:t.peer_name }), el("div", { class:"last", text:(t.last_from === p.id ? "나: " : "") + t.last_body })),
+        el("div", { class:"tm" }, el("span", { text:ago(t.last_at) }), t.unread ? el("span", { class:"badge-dot", text:String(t.unread) }) : null))))
+      : el("p", { class:"muted", style:"margin:0", text:p.kind === "artist" ? "아직 대화가 없어요. 호스트 프로필에서 'DM 보내기'로 먼저 인사해 보세요." : "아직 대화가 없어요. 섭외하고 싶은 아티스트 프로필에서 'DM 보내기'를 눌러 보세요." }));
+  });
+  mount(el("div", { class:"narrow", style:"margin-top:32px;display:grid;gap:20px" },
+    el("div", {}, el("div", { class:"eyebrow", text:"아티스트 · 호스트 메시지" }), el("h1", { text:"DM" }), el("p", { class:"sub", text:"섭외, 공연 협의, 협업 이야기를 프로필끼리 나눠요. 같은 팀의 팀원은 모두 같은 대화를 보고 답할 수 있어요." })),
+    blocks));
+}
+
+async function viewDmThread(mine, peer){
+  if (needLogin()) return;
+  const id = loading();
+  if (!S.roles.has(mine)){ mount(emptyBox("이 팀의 팀원만 볼 수 있는 대화예요.", el("a", { class:"btn", href:"#/dm", text:"DM함으로" }))); return; }
+  const [a, b] = await Promise.all([
+    sb.from("pages").select("id,name,kind,photo_url").eq("id", mine).maybeSingle(),
+    sb.from("pages").select("id,name,kind,photo_url").eq("id", peer).maybeSingle()
+  ]);
+  if (stale(id)) return;
+  const me = a.data, other = b.data;
+  if (!me || !other || mine === peer){ mount(emptyBox("대화 상대를 찾을 수 없어요.", el("a", { class:"btn", href:"#/dm", text:"DM함으로" }))); return; }
+
+  const chat = el("div", { class:"chat", "aria-live":"polite" });
+  let lastAt = null, seen = new Set();
+  const filter = `and(from_page.eq.${mine},to_page.eq.${peer}),and(from_page.eq.${peer},to_page.eq.${mine})`;
+  let lastDay = "";
+  function addMsg(m){
+    if (seen.has(m.id)) return; seen.add(m.id);
+    const day = new Date(m.created_at).toLocaleDateString("sv-SE");
+    if (day !== lastDay){ lastDay = day; const d = dparts(day); chat.append(el("div", { class:"dmday", text:`${d.y}.${String(d.m).padStart(2, "0")}.${String(d.d).padStart(2, "0")} (${d.w})` })); }
+    const minePage = m.from_page === mine;
+    chat.append(el("div", { class:"msg" + (minePage ? " mine" : "") }, el("div", { class:"bub", text:m.body }),
+      el("div", { class:"meta2", text:(minePage ? (m.profiles?.nickname || "팀원") + " · " : "") + hm(m.created_at) })));
+    lastAt = m.created_at;
+  }
+  async function pull(first){
+    let q = sb.from("messages").select("*, profiles(nickname)").or(filter).order("created_at", { ascending:true }).limit(300);
+    if (lastAt) q = q.gt("created_at", lastAt);
+    const { data, error } = await q;
+    if (stale(id) || error) return;
+    const atBottom = chat.scrollHeight - chat.scrollTop - chat.clientHeight < 60;
+    const before = seen.size;
+    (data || []).forEach(addMsg);
+    if (first && !seen.size) chat.append(el("div", { class:"dmday", id:"dm-empty", text:`${other.name}에게 첫 메시지를 보내 보세요.` }));
+    if (seen.size && $("dm-empty")) $("dm-empty").remove();
+    if (first || (seen.size > before && atBottom)) chat.scrollTop = chat.scrollHeight;
+    if (seen.size > before || first){ await sb.rpc("mark_dm_read", { p_page:mine, p_peer:peer }); const u = await sb.rpc("my_unread_dm"); if (!u.error && typeof u.data === "number"){ S.unread = u.data; renderAcct(); } }
+  }
+
+  const ta = el("textarea", { id:"dm-body", maxlength:"2000", placeholder:`${me.name} 이름으로 메시지 보내기`, "aria-label":"메시지" });
+  const send = el("button", { type:"submit", class:"btn primary", text:"보내기" });
+  const form = el("form", { class:"dmform", onsubmit:async e => {
+    e.preventDefault(); const body = ta.value.trim(); if (!body) return;
+    send.disabled = true;
+    const { error } = await sb.from("messages").insert({ from_page:mine, to_page:peer, sender_id:S.user.id, body });
+    send.disabled = false;
+    if (error) return toast(errMsg(error), "err");
+    ta.value = ""; await pull(false); chat.scrollTop = chat.scrollHeight; ta.focus();
+  } }, ta, send);
+  ta.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing){ e.preventDefault(); form.requestSubmit(); } });
+
+  mount(el("div", { class:"narrow", style:"margin-top:24px;display:grid;gap:12px" },
+    el("p", { class:"sub", style:"margin:0" }, el("a", { href:"#/dm", style:"color:var(--ink-2)", text:"← DM함" })),
+    el("div", { class:"sechead", style:"margin:0" },
+      el("div", { style:"display:flex;gap:12px;align-items:center" }, avatar(other.name, other.photo_url), el("div", {}, el("h2", {}, el("a", { href:`#/p/${other.id}`, style:"text-decoration:none", text:other.name })), el("div", { class:"muted", style:"font-size:13px", text:`${KIND[other.kind].label} · ${me.name} 팀으로 대화 중` })))),
+    chat, form));
+  await pull(true);
+  const timer = setInterval(() => { if (stale(id)){ clearInterval(timer); return; } if (!document.hidden) pull(false); }, 6000);
+  ta.focus();
+}
+
 /* =================== 시작 =================== */
 (function boot(){
   if (!window.supabase){ banner("서비스에 연결하지 못했어요. 새로고침해 주세요.", "err"); mount(); return; }
@@ -1104,6 +1342,11 @@ function viewLogin(){
     }, 0);
   });
   window.addEventListener("hashchange", () => { window.onbeforeunload = null; route(); });
+  setInterval(async () => {
+    if (!S.user || !S.myPages.length || document.hidden) return;
+    const u = await sb.rpc("my_unread_dm");
+    if (!u.error && typeof u.data === "number" && u.data !== S.unread){ S.unread = u.data; renderAcct(); }
+  }, 60000);
 })();
 </script>
 </body>
